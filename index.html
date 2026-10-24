@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>むずかしすぎる少年スロット</title>
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    -webkit-tap-highlight-color:transparent;
+}
+html,body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    touch-action:none;
+    background:#111;
+    color:#fff;
+    font-family:sans-serif;
+}
+.screen{
+    width:100%;
+    height:100%;
+    display:none;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    padding:16px;
+    text-align:center;
+}
+.screen.active{
+    display:flex;
+}
+h1{
+    font-size:2rem;
+    margin-bottom:15px;
+    color:#ffd700;
+}
+p{
+    margin:8px 0;
+    line-height:1.6;
+}
+button{
+    border:none;
+    border-radius:14px;
+    background:#ff9800;
+    color:#fff;
+    font-size:1.2rem;
+    font-weight:bold;
+    padding:16px 24px;
+    min-width:180px;
+    margin-top:15px;
+}
+button:active{
+    transform:scale(0.96);
+}
+
+.topbar{
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:12px;
+    font-size:1.2rem;
+    font-weight:bold;
+}
+
+.slot-area{
+    width:100%;
+    max-width:420px;
+}
+
+.reels{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin:12px 0;
+}
+
+.reel{
+    flex:1;
+    height:110px;
+    background:#222;
+    border:3px solid #555;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:3.2rem;
+}
+
+.stop-buttons{
+    display:flex;
+    gap:8px;
+}
+
+.stop-btn{
+    flex:1;
+    min-width:0;
+    margin:0;
+    padding:14px 4px;
+    font-size:1rem;
+}
+
+.info{
+    margin-top:12px;
+    font-size:1rem;
+    min-height:48px;
+}
+
+.rank{
+    font-size:2rem;
+    color:#ffd700;
+    margin:10px 0;
+}
+
+.small{
+    font-size:0.95rem;
+    color:#ddd;
+}
+
+@media (max-width:480px){
+    .reel{
+        height:90px;
+        font-size:2.5rem;
+    }
+}
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen active">
+    <h1>👦 超むずかし少年スロット</h1>
+    <p>
+        3つのリールを止めて<br>
+        同じ男の子をそろえよう！
+    </p>
+    <p>
+        30秒で何回そろえられるかな？<br>
+        全部そろうと高得点！
+    </p>
+    <p class="small">
+        難易度：むずかしい<br>
+        リールは高速回転します
+    </p>
+    <button id="startBtn">スタート</button>
+</div>
+
+<div id="gameScreen" class="screen">
+    <div class="topbar">
+        <div>🏆 <span id="score">0</span></div>
+        <div>⏰ <span id="time">30</span></div>
+    </div>
+
+    <div class="slot-area">
+
+        <div class="reels">
+            <div class="reel" id="reel1">👦</div>
+            <div class="reel" id="reel2">👦</div>
+            <div class="reel" id="reel3">👦</div>
+        </div>
+
+        <div class="stop-buttons">
+            <button class="stop-btn" id="stop1">①止める</button>
+            <button class="stop-btn" id="stop2">②止める</button>
+            <button class="stop-btn" id="stop3">③止める</button>
+        </div>
+
+        <div class="info" id="message">
+            ボタンを押して3つのリールを止めよう！
+        </div>
+    </div>
+</div>
+
+<div id="resultScreen" class="screen">
+    <h1>結果発表</h1>
+    <p>最終スコア</p>
+    <div style="font-size:3rem;margin:10px 0;" id="finalScore">0</div>
+    <div class="rank" id="rank">C</div>
+    <button id="retryBtn">もう一度遊ぶ</button>
+</div>
+
+<script>
+const chars=[
+"👦","🧒","👨‍🎓","🧑‍🚀","🤠","🦸‍♂️"
+];
+
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const resultScreen=document.getElementById("resultScreen");
+
+const reelEls=[
+document.getElementById("reel1"),
+document.getElementById("reel2"),
+document.getElementById("reel3")
+];
+
+const stopBtns=[
+document.getElementById("stop1"),
+document.getElementById("stop2"),
+document.getElementById("stop3")
+];
+
+const scoreEl=document.getElementById("score");
+const timeEl=document.getElementById("time");
+const msgEl=document.getElementById("message");
+
+let score=0;
+let time=30;
+let timer=null;
+let reelIntervals=[];
+let currentSymbols=["👦","👦","👦"];
+let stopped=[false,false,false];
+
+function show(screen){
+    startScreen.classList.remove("active");
+    gameScreen.classList.remove("active");
+    resultScreen.classList.remove("active");
+    screen.classList.add("active");
+}
+
+function startGame(){
+    score=0;
+    time=30;
+
+    scoreEl.textContent=score;
+    timeEl.textContent=time;
+
+    show(gameScreen);
+
+    startRound();
+
+    clearInterval(timer);
+    timer=setInterval(()=>{
+        time--;
+        timeEl.textContent=time;
+
+        if(time<=0){
+            endGame();
+        }
+    },1000);
+}
+
+function startRound(){
+
+    stopped=[false,false,false];
+
+    stopBtns.forEach(btn=>{
+        btn.disabled=false;
+        btn.style.opacity="1";
+    });
+
+    msgEl.textContent="3つのリールを止めよう！";
+
+    for(let i=0;i<3;i++){
+
+        clearInterval(reelIntervals[i]);
+
+        reelIntervals[i]=setInterval(()=>{
+            const random=chars[Math.floor(Math.random()*chars.length)];
+            currentSymbols[i]=random;
+            reelEls[i].textContent=random;
+        },70);
+    }
+}
+
+function stopReel(index){
+
+    if(stopped[index]) return;
+
+    stopped[index]=true;
+
+    clearInterval(reelIntervals[index]);
+
+    stopBtns[index].disabled=true;
+    stopBtns[index].style.opacity="0.5";
+
+    if(stopped.every(v=>v)){
+        judge();
+    }
+}
+
+function judge(){
+
+    const a=currentSymbols[0];
+    const b=currentSymbols[1];
+    const c=currentSymbols[2];
+
+    if(a===b && b===c){
+        score+=100;
+        msgEl.textContent="🎉 大当たり！ +100";
+    }
+    else if(a===b || b===c || a===c){
+        score+=20;
+        msgEl.textContent="✨ 2つ一致！ +20";
+    }
+    else{
+        msgEl.textContent="💦 はずれ！";
+    }
+
+    scoreEl.textContent=score;
+
+    if(time>0){
+        setTimeout(()=>{
+            if(time>0){
+                startRound();
+            }
+        },500);
+    }
+}
+
+function endGame(){
+
+    clearInterval(timer);
+
+    reelIntervals.forEach(r=>clearInterval(r));
+
+    document.getElementById("finalScore").textContent=score;
+
+    let rank="C";
+    if(score>=800) rank="S";
+    else if(score>=500) rank="A";
+    else if(score>=250) rank="B";
+
+    document.getElementById("rank").textContent=
+    "ランク " + rank;
+
+    show(resultScreen);
+}
+
+document.getElementById("startBtn").addEventListener("click",startGame);
+document.getElementById("retryBtn").addEventListener("click",startGame);
+
+stopBtns[0].addEventListener("click",()=>stopReel(0));
+stopBtns[1].addEventListener("click",()=>stopReel(1));
+stopBtns[2].addEventListener("click",()=>stopReel(2));
+
+document.addEventListener("gesturestart",e=>e.preventDefault());
+document.addEventListener("dblclick",e=>e.preventDefault());
+</script>
+
+</body>
+</html>
